@@ -1,0 +1,40 @@
+Overview
+--------
+In this challenge we were meant to exploit a program that simulates a gambling facility. The user should bet a certain number of coins and guess a random number between 1 and 12. A random number would be generate using a seed created in the begin of the program. If the player guessed the random number they would win double number of coins bet previously. If the bet was incorrect the set number of coins would be taken away.
+In order to play the game, the user was given 10 coins in the begin of the game. They could kept playing as long as it had at least 1 coin, and the number of coins bet needed to be inferior to the number of coins available to the user.
+Once the number of coins was 999999999, the player could get acess to a secret information. However, it is still necessary to give a correct password and only afterwards would the function system be invoked to open the file flag.
+
+Vulnerability
+-------------
+The program has some vulnerabilities that could be explored. First, the function responsible for reading the user's input doesn't have in consideration the size of it. This makes the program susceptible to overflows. We can see it in the functions scanf of "game".  
+On the other hand, when the program restricts the size of the user's input, the limit is inconsistent with the size of the buffer that will store it. The example of this can be observe in "scanf("%45s", password)" of the function "get_information".
+
+Exploitation
+------------
+As mention the first step would be to get 99999999 coins so I would be closer to get access to the flag.
+Knowing that I could exploit the fact that the size of the number I used as input was not verify, I needed to know the biggest number I could write and I would use a number bigger so it would result in overflow. Now I need to know where it would be the right point to cause it.
+Using the gdb I was able to determine which addresses of the stack were changed when I wrote a number and analising the assembly code I could determine that the variable coins is placed in the position -0xc($ebp)("movl   $0xa,-0xc(%ebp)").
+When I wrote an input that would be place in setcoins, I observed that it would be place 4 bytes away from coins, in other words, right above "coins" in the stack. 
+Noticing the setcoins only needed to validate the condition setcoins<coins, I concluded that it was possible to attribute a negative number big enough to cause a overflow, and it would change the value of coins to a big positive number.
+In the following executation of the program it is possible to try to input a password that would give me access to the flag.
+In the code, I could observe that the right password added with the salt would generate the hash: 0xea, 0x61, 0xdf, 0x0f, 0x8b, 0x18, 0x0b, 0x2c, 0x4a, 0xe0, 0xcb, 0xd1, 0x49, 0x32, 0x9e, 0xd4, 0xd9, 0x27, 0xc7, 0x91.
+I can also see that I could give an input of 45 chars and analizing the stack using gdb and the command "x/40wx $esp" before and after the scanf, I could determine that the 20 chars of the password are allocated right before the 8 chars of the salt and the 20 of the correct_hash. Inputing a string of 45 chars, it's possible to observe that most of the chars are replaced with our string, except 3 of those chars that correspond to the hex value 0x00c791.
+Therefore, our goal is to obtain a string of 27 chars as the last one would be \00 (end of string) that resulted on a hash ending on 00c791.
+For this I wrote the following python script: 
+import string; import random; import hashlib; letters = string.ascii_lowercase; flag = True
+while flag: result_str = ''.join(random.choice(letters) for i in range(27)); s1 = hashlib.sha1(result_str.encode("utf-8")).hexdigest(); s2 = s1[-6:]; obj = "00c791"; flag = False if s2 == obj else True
+After executing this code, I obtain the following solution:
+"voivrqozfmdyeschqiekiwzdvxy" with a hash value: \x4e\x86\x16\x1a\x15\x18\xa8\xcb\x00\xff\xc2\xb8\xd9\x5f\x61\xd7\x83\x00\xc7\x91
+After rearranging the string as the first 8 chars are the salt and need to be inputed after the password so they are correctly added in the stack we obtain:
+fmdyeschqiekiwzdvxyvoivrqoz
+With the corresponding hex:
+\x66\x6d\x64\x79\x65\x73\x63\x68\x71\x69\x65\x6b\x69\x77\x7a\x64\x76\x78\x79\x00\x76\x6f\x69\x76\x72\x71\x6f\x7a
+It is important to mention that we need to had the hex value "\00" in the end of the password, because it marks the end of the string and it should be saved in the stack.
+The value inputed in the program as the password should be: 
+\x66\x6d\x64\x79\x65\x73\x63\x68\x71\x69\x65\x6b\x69\x77\x7a\x64\x76\x78\x79\x00\x76\x6f\x69\x76\x72\x71\x6f\x7a\x4e\x86\x16\x1a\x15\x18\xa8\xcb\x00\xff\xc2\xb8\xd9\x5f\x61\xd7\x83
+In conclusion: we input the password + \00 + salt + (17 bytes)new hash value
+In order to input all the solution and to make sure the hexadecimal string was read correctly I found it necessary to write it into a .txt called "solucaoB4W" using the command echo -en. I used this document has the input of the program bet4win.
+
+Solution
+--------
+Provide the minimal patch required to fix the program, by including the lines of code that should be changed. Briefly explain how and why your fix is correct.

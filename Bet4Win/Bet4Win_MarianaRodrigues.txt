@@ -1,0 +1,104 @@
+bet4win
+=======
+
+Overview
+--------
+In this challenge we were meant to exploit a program that simulates a gambling facility. The user should bet a certain amount of coins and guess a random number between 1 and 12. A random number is generated using a seed created in the beginning of the program. If the player guesses the random number they receive double the number of coins bet previously. However, if the bet was incorrect the setted number of coins would be taken away.
+
+In order to play the game, the user was given 10 coins in the beginning of the game and they could kept playing as long as they have at least 1 coin. It was required that the number of coins bet were inferior to the number of coins available to the user.
+
+Once the number of coins is 999999999, the player can get access to a *secret information*. However, it is still necessary to give a correct password and only afterwards the function *system* would be invoked to open the file flag.
+
+Vulnerability
+-------------
+The program has some vulnerabilities that could be explored. Firstly, the function responsible for reading the user's input in the function game doesn't have in consideration the size of it. This makes the program susceptible to overflows. 
+
+On the other hand, when the program restricts the size of the user's input, the limit is inconsistent with the size of the buffer that will store it. The example of this can be observed in *scanf("%45s", password)* of the function *get_information*, because the buffer password's size is 20 chars.
+
+Besides the possibility to cause overflow, the user can also input negative values that are not expected. In other words, the program doesn't have in consideration all the possible inputs.
+
+Exploitation
+------------
+As mentioned, the first step would be to get 99999999 coins and, for that, I (Mariana Rodrigues e12136642) could exploit the fact that the size of the number I used as input was not verified. In the function *game*, the only inputs avaliable are ints that would be written into the variables *user_input* or *set_coins*. Using gdb, I was able to determine which addresses of the stack were changed when I wrote a number in those variables. Analising the assembly code, I could determine that the variable coins is placed in the position *-0xc($ebp)* (*movl   $0xa,-0xc(%ebp)*). When I wrote an input for *setcoins*, I observed that it would be placed 4 bytes away from *coins*, in other words, right above *coins* in the stack. 
+
+I needed to know the biggest number I could write (2⁴) and would use a number bigger so it would result in overflow. On the other hand, as the *setcoins* only needs to validate the condition setcoins &lt; coins, I concluded that it was possible to attribute a negative number big enough to cause an overflow, and it would change the value of *coins* to a big positive number. As the input can be negative and that number will be subtracted to the existing coins, subtracting it will add coins to the user. With all of this information, I wrote a large negative number as the input for *setcoins* and in the following execution of the program it is possible to try to input a password that would give me access to the flag.
+
+In the code, I could observe that the right password added with the salt would generate the hash: 
+
+> 0xea, 0x61, 0xdf, 0x0f, 0x8b, 0x18, 0x0b, 0x2c, 0x4a, 0xe0, 0xcb, 0xd1, 0x49, 0x32, 0x9e, 0xd4, 0xd9, 0x27, 0xc7, 0x91.
+
+I can also see that I could give an input of 45 chars (line 54: *scanf("%45s", password);*) and analizing the stack using gdb and the command *x/40wx $esp* before and after the scanf, I could determine that the 20 chars of the *password* are allocated right before the 8 chars of the *salt* and the 20 of the *correct_hash*. Inputing a string of 45 chars, it's possible to observe that most of the chars are replaced with our string, except 3 of those chars that correspond to the hex value *0x00c791*.
+
+Therefore, our goal is to obtain a string of 27 chars as the last one would be \00 (end of string) that resulted on a hash ending on 00c791.
+For this I wrote the following python script: 
+<pre><code>
+	import string; 
+	import random; 
+	import hashlib; 
+	letters = string.ascii_lowercase; 
+	flag = True
+	while flag: 
+		result_str = ''.join(random.choice(letters) for i in range(27)); 
+		s1 = hashlib.sha1(result_str.encode("utf-8")).hexdigest(); 
+		s2 = s1[-6:]; 
+		obj = "00c791"; 
+		flag = False if s2 == obj else True
+</code></pre>
+
+This code was used as an one-line python script and was reestructured so it would be easier to read in this write-up.
+
+After executing this code, I obtained the following solution:
+> voivrqozfmdyeschqiekiwzdvxy
+
+with a hash value of: 
+> \x4e\x86\x16\x1a\x15\x18\xa8\xcb\x00\xff\xc2\xb8\xd9\x5f\x61\xd7\x83\x00\xc7\x91
+
+After rearranging the string, as the first 8 chars are the salt and they need to be inputed after the password so they are correctly added in the stack we obtain:
+> fmdyeschqiekiwzdvxyvoivrqoz
+
+With the corresponding hex:
+> \x66\x6d\x64\x79\x65\x73\x63\x68\x71\x69\x65\x6b\x69\x77\x7a\x64\x76\x78\x79\x00\x76\x6f\x69\x76\x72\x71\x6f\x7a
+
+It is important to mention that we need to had the hex value "\00" in the end of the password, because it marks the end of the string and it should be saved in the stack.
+The value inputed in the program as the password should be: 
+> \x66\x6d\x64\x79\x65\x73\x63\x68\x71\x69\x65\x6b\x69\x77\x7a\x64\x76\x78\x79\x00\x76\x6f\x69\x76\x72\x71\x6f\x7a\x4e\x86\x16\x1a\x15\x18\xa8\xcb\x00\xff\xc2\xb8\xd9\x5f\x61\xd7\x83
+
+In conclusion: we input the *password + \00 + salt + (17 bytes)new hash value* into the program when it asked for the password
+In order to input all the solution and to make sure the hexadecimal string was read correctly I found it necessary to write it into a .txt file called "solucaoB4W" using the command echo -en. I used this document as the input of the program bet4win. 
+
+After using this input, I was able to gain access to the flag in finish the challenge.
+
+
+Solution
+--------
+The solution to resolve the vulnerabilities, starts with making corrections to the code. First, it's necessary to add a condition after reading the input for *setcoins* that validates if this number is greater than 0. A solution could be rewrite the line of code: if (set_coins &gt; (int)coins) as if (set_coins &gt; (int)coins && set_coins &lt; 0).
+<pre><code>
+	void game(void){
+	// ...
+	
+				if (scanf("%d", &set_coins) != 1) {
+					fprintf(stderr, "SOMETHING WENT WRONG");
+					exit(1);
+				}
+				if (set_coins > (int)coins && set_coins < 0) {
+					printf("You cannot set more coins than you own!\n");
+					continue;
+				}else {
+					coins = coins - set_coins;
+				}
+	// ...	
+	}
+</code></pre>
+
+The possibility of overflows should also be taken into consideration. For example, in the function *get_information* if the buffer's size is 20 chars, the scanf shouldn't allow the user to input 45 chars. Therefore, the line of code that currently states *scanf("%45s", password);* should be: *scanf("%20s", password);*
+<pre><code>
+	void get_information(void){
+	// ...
+				unsigned char password[20];
+	// ...
+				scanf("%20s", password);
+	// ...	
+	}
+</code></pre>
+
+A solution could also be abandoning *scanf*. It's known that the function scanf is unsafe and deprecated, and not using it would be better as a all. Instead, we can use the function *sscanf*. We could also change the hash function *SHA1*, that is no longer considered secure.
